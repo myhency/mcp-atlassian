@@ -113,10 +113,30 @@ This option is useful in scenarios where OAuth credential management is centrali
 
 MCP Atlassian is distributed as a Docker image. This is the recommended way to run the server, especially for IDE integration. Ensure you have Docker installed.
 
+#### Option A: Use Pre-built Image (Stable Release)
+
 ```bash
-# Pull Pre-built Image
+# Pull Pre-built Image from original repository
 docker pull ghcr.io/sooperset/mcp-atlassian:latest
 ```
+
+#### Option B: Build Local Image (Development/Custom Features)
+
+If you've forked the repository or made local changes, build your own image:
+
+```bash
+# Clone your fork
+git clone https://github.com/YOUR_USERNAME/mcp-atlassian.git
+cd mcp-atlassian
+
+# Build local image
+docker build -t mcp-atlassian:local .
+
+# Or build and tag for your own registry
+docker build -t ghcr.io/YOUR_USERNAME/mcp-atlassian:latest .
+```
+
+Then use `mcp-atlassian:local` (or your custom tag) instead of `ghcr.io/sooperset/mcp-atlassian:latest` in the configuration examples below.
 
 ## 🛠️ IDE Integration
 
@@ -719,6 +739,93 @@ Here's a complete example of setting up multi-user authentication with streamabl
 </details>
 
 ## Tools
+
+### Runtime Authentication Parameters
+
+All Jira and Confluence tools support optional authentication parameters that allow you to override environment-based credentials on a per-call basis. This feature is particularly useful for:
+
+- **Multi-tenant applications** where different users/requests use different credentials
+- **Dynamic authentication** scenarios without requiring environment variable reconfiguration
+- **Testing** with multiple accounts without restarting the server
+- **Programmatic API usage** where credentials are managed externally
+
+#### Available Parameters
+
+Every tool accepts these optional parameters:
+
+**For Jira Tools:**
+- `jira_url` (string, optional): Jira instance URL (e.g., `https://mycompany.atlassian.net`)
+- `auth_token` (string, optional): Authentication token (OAuth access token, Personal Access Token, or API token)
+- `auth_type` (string, optional): Authentication type - must be `"oauth"`, `"pat"`, or `"basic"`
+- `username` (string, optional): Username/email (required **only** when `auth_type` is `"basic"`)
+
+**For Confluence Tools:**
+- `confluence_url` (string, optional): Confluence instance URL (e.g., `https://mycompany.atlassian.net/wiki`)
+- `auth_token` (string, optional): Authentication token (OAuth access token, Personal Access Token, or API token)
+- `auth_type` (string, optional): Authentication type - must be `"oauth"`, `"pat"`, or `"basic"`
+- `username` (string, optional): Username/email (required **only** when `auth_type` is `"basic"`)
+
+#### Behavior
+
+- **All-or-nothing**: If you provide runtime auth parameters, you must provide **all required parameters** for that auth type:
+  - For `"oauth"` or `"pat"`: need `*_url`, `auth_token`, and `auth_type`
+  - For `"basic"`: need `*_url`, `auth_token`, `auth_type`, **and** `username`
+- **Fallback**: If any required parameter is missing, the tool falls back to environment variable authentication
+- **Precedence**: Runtime parameters always take precedence over environment variables when all required params are provided
+
+#### Example Usage
+
+Using runtime authentication in Python with the MCP SDK:
+
+```python
+from mcp import ClientSession
+
+# Example 1: OAuth authentication for Jira
+result = await session.call_tool(
+    "jira_get_issue",
+    {
+        "issue_key": "PROJ-123",
+        "jira_url": "https://mycompany.atlassian.net",
+        "auth_token": "eyJhbGc...oauth_access_token",
+        "auth_type": "oauth"
+    }
+)
+
+# Example 2: Basic authentication for Confluence
+result = await session.call_tool(
+    "confluence_search",
+    {
+        "query": "project documentation",
+        "confluence_url": "https://mycompany.atlassian.net/wiki",
+        "auth_token": "ATATT3xFfG...api_token",
+        "auth_type": "basic",
+        "username": "user@company.com"
+    }
+)
+
+# Example 3: Personal Access Token for Jira Server/DC
+result = await session.call_tool(
+    "jira_search",
+    {
+        "jql": "project = PROJ AND status = Open",
+        "jira_url": "https://jira.company.com",
+        "auth_token": "NjQwMzY2Nj...personal_access_token",
+        "auth_type": "pat"
+    }
+)
+
+# Example 4: No runtime auth - falls back to environment variables
+result = await session.call_tool(
+    "jira_get_issue",
+    {
+        "issue_key": "PROJ-456"
+        # Uses JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN from environment
+    }
+)
+```
+
+> [!NOTE]
+> Runtime authentication parameters are available in custom builds. If using the pre-built image from `ghcr.io/sooperset/mcp-atlassian`, this feature may not be available yet. See [Installation](#-2-installation) for building a local image.
 
 ### Key Tools
 
