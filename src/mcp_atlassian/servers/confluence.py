@@ -2,13 +2,15 @@
 
 import json
 import logging
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastmcp import Context, FastMCP
 from pydantic import BeforeValidator, Field
 
+from mcp_atlassian.confluence import ConfluenceFetcher
 from mcp_atlassian.exceptions import MCPAtlassianAuthenticationError
 from mcp_atlassian.servers.dependencies import get_confluence_fetcher
+from mcp_atlassian.utils.config_builder import build_confluence_config_from_params
 from mcp_atlassian.utils.decorators import (
     check_write_access,
 )
@@ -69,6 +71,34 @@ async def search(
             default=None,
         ),
     ] = None,
+    confluence_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Confluence instance URL (e.g., 'https://mycompany.atlassian.net/wiki'). If not provided, uses environment variable CONFLUENCE_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Search Confluence content using simple terms or CQL.
 
@@ -77,11 +107,25 @@ async def search(
         query: Search query - can be simple text or a CQL query string.
         limit: Maximum number of results (1-50).
         spaces_filter: Comma-separated list of space keys to filter by.
+        confluence_url: Optional Confluence instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing a list of simplified Confluence page objects.
     """
-    confluence_fetcher = await get_confluence_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if confluence_url and auth_token and auth_type:
+        config = build_confluence_config_from_params(
+            confluence_url=confluence_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        confluence_fetcher = ConfluenceFetcher(config=config)
+    else:
+        confluence_fetcher = await get_confluence_fetcher(ctx)
     # Check if the query is a simple search term or already a CQL query
     if query and not any(
         x in query for x in ["=", "~", ">", "<", " AND ", " OR ", "currentUser()"]
@@ -161,6 +205,34 @@ async def get_page(
             default=True,
         ),
     ] = True,
+    confluence_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Confluence instance URL (e.g., 'https://mycompany.atlassian.net/wiki'). If not provided, uses environment variable CONFLUENCE_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Get content of a specific Confluence page by its ID, or by its title and space key.
 
@@ -171,11 +243,25 @@ async def get_page(
         space_key: The key of the space. Must be used with 'title'.
         include_metadata: Whether to include page metadata.
         convert_to_markdown: Convert content to markdown (true) or keep raw HTML (false).
+        confluence_url: Optional Confluence instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the page content and/or metadata, or an error if not found or parameters are invalid.
     """
-    confluence_fetcher = await get_confluence_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if confluence_url and auth_token and auth_type:
+        config = build_confluence_config_from_params(
+            confluence_url=confluence_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        confluence_fetcher = ConfluenceFetcher(config=config)
+    else:
+        confluence_fetcher = await get_confluence_fetcher(ctx)
     page_object = None
 
     if page_id:
@@ -269,6 +355,34 @@ async def get_page_children(
         int,
         Field(description="Starting index for pagination (0-based)", default=0, ge=0),
     ] = 0,
+    confluence_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Confluence instance URL (e.g., 'https://mycompany.atlassian.net/wiki'). If not provided, uses environment variable CONFLUENCE_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Get child pages of a specific Confluence page.
 
@@ -280,11 +394,25 @@ async def get_page_children(
         include_content: Whether to include page content.
         convert_to_markdown: Convert content to markdown if include_content is true.
         start: Starting index for pagination.
+        confluence_url: Optional Confluence instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing a list of child page objects.
     """
-    confluence_fetcher = await get_confluence_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if confluence_url and auth_token and auth_type:
+        config = build_confluence_config_from_params(
+            confluence_url=confluence_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        confluence_fetcher = ConfluenceFetcher(config=config)
+    else:
+        confluence_fetcher = await get_confluence_fetcher(ctx)
     if include_content and "body" not in expand:
         expand = f"{expand},body.storage" if expand else "body.storage"
 
@@ -327,17 +455,59 @@ async def get_comments(
             )
         ),
     ],
+    confluence_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Confluence instance URL (e.g., 'https://mycompany.atlassian.net/wiki'). If not provided, uses environment variable CONFLUENCE_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Get comments for a specific Confluence page.
 
     Args:
         ctx: The FastMCP context.
         page_id: Confluence page ID.
+        confluence_url: Optional Confluence instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing a list of comment objects.
     """
-    confluence_fetcher = await get_confluence_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if confluence_url and auth_token and auth_type:
+        config = build_confluence_config_from_params(
+            confluence_url=confluence_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        confluence_fetcher = ConfluenceFetcher(config=config)
+    else:
+        confluence_fetcher = await get_confluence_fetcher(ctx)
     comments = confluence_fetcher.get_page_comments(page_id)
     formatted_comments = [comment.to_simplified_dict() for comment in comments]
     return json.dumps(formatted_comments, indent=2, ensure_ascii=False)
@@ -356,17 +526,59 @@ async def get_labels(
             )
         ),
     ],
+    confluence_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Confluence instance URL (e.g., 'https://mycompany.atlassian.net/wiki'). If not provided, uses environment variable CONFLUENCE_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Get labels for a specific Confluence page.
 
     Args:
         ctx: The FastMCP context.
         page_id: Confluence page ID.
+        confluence_url: Optional Confluence instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing a list of label objects.
     """
-    confluence_fetcher = await get_confluence_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if confluence_url and auth_token and auth_type:
+        config = build_confluence_config_from_params(
+            confluence_url=confluence_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        confluence_fetcher = ConfluenceFetcher(config=config)
+    else:
+        confluence_fetcher = await get_confluence_fetcher(ctx)
     labels = confluence_fetcher.get_page_labels(page_id)
     formatted_labels = [label.to_simplified_dict() for label in labels]
     return json.dumps(formatted_labels, indent=2, ensure_ascii=False)
@@ -378,6 +590,34 @@ async def add_label(
     ctx: Context,
     page_id: Annotated[str, Field(description="The ID of the page to update")],
     name: Annotated[str, Field(description="The name of the label")],
+    confluence_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Confluence instance URL (e.g., 'https://mycompany.atlassian.net/wiki'). If not provided, uses environment variable CONFLUENCE_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Add label to an existing Confluence page.
 
@@ -385,6 +625,10 @@ async def add_label(
         ctx: The FastMCP context.
         page_id: The ID of the page to update.
         name: The name of the label.
+        confluence_url: Optional Confluence instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the updated list of label objects for the page.
@@ -392,7 +636,17 @@ async def add_label(
     Raises:
         ValueError: If in read-only mode or Confluence client is unavailable.
     """
-    confluence_fetcher = await get_confluence_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if confluence_url and auth_token and auth_type:
+        config = build_confluence_config_from_params(
+            confluence_url=confluence_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        confluence_fetcher = ConfluenceFetcher(config=config)
+    else:
+        confluence_fetcher = await get_confluence_fetcher(ctx)
     labels = confluence_fetcher.add_page_label(page_id, name)
     formatted_labels = [label.to_simplified_dict() for label in labels]
     return json.dumps(formatted_labels, indent=2, ensure_ascii=False)
@@ -437,6 +691,34 @@ async def create_page(
             default=False,
         ),
     ] = False,
+    confluence_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Confluence instance URL (e.g., 'https://mycompany.atlassian.net/wiki'). If not provided, uses environment variable CONFLUENCE_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Create a new Confluence page.
 
@@ -448,6 +730,10 @@ async def create_page(
         parent_id: Optional parent page ID.
         content_format: The format of the content ('markdown', 'wiki', or 'storage').
         enable_heading_anchors: Whether to enable heading anchors (markdown only).
+        confluence_url: Optional Confluence instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the created page object.
@@ -455,7 +741,17 @@ async def create_page(
     Raises:
         ValueError: If in read-only mode, Confluence client is unavailable, or invalid content_format.
     """
-    confluence_fetcher = await get_confluence_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if confluence_url and auth_token and auth_type:
+        config = build_confluence_config_from_params(
+            confluence_url=confluence_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        confluence_fetcher = ConfluenceFetcher(config=config)
+    else:
+        confluence_fetcher = await get_confluence_fetcher(ctx)
 
     # Validate content_format
     if content_format not in ["markdown", "wiki", "storage"]:
@@ -527,6 +823,34 @@ async def update_page(
             default=False,
         ),
     ] = False,
+    confluence_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Confluence instance URL (e.g., 'https://mycompany.atlassian.net/wiki'). If not provided, uses environment variable CONFLUENCE_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Update an existing Confluence page.
 
@@ -540,6 +864,10 @@ async def update_page(
         parent_id: Optional new parent page ID.
         content_format: The format of the content ('markdown', 'wiki', or 'storage').
         enable_heading_anchors: Whether to enable heading anchors (markdown only).
+        confluence_url: Optional Confluence instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the updated page object.
@@ -547,7 +875,17 @@ async def update_page(
     Raises:
         ValueError: If Confluence client is not configured, available, or invalid content_format.
     """
-    confluence_fetcher = await get_confluence_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if confluence_url and auth_token and auth_type:
+        config = build_confluence_config_from_params(
+            confluence_url=confluence_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        confluence_fetcher = ConfluenceFetcher(config=config)
+    else:
+        confluence_fetcher = await get_confluence_fetcher(ctx)
 
     # Validate content_format
     if content_format not in ["markdown", "wiki", "storage"]:
@@ -589,12 +927,44 @@ async def update_page(
 async def delete_page(
     ctx: Context,
     page_id: Annotated[str, Field(description="The ID of the page to delete")],
+    confluence_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Confluence instance URL (e.g., 'https://mycompany.atlassian.net/wiki'). If not provided, uses environment variable CONFLUENCE_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Delete an existing Confluence page.
 
     Args:
         ctx: The FastMCP context.
         page_id: The ID of the page to delete.
+        confluence_url: Optional Confluence instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string indicating success or failure.
@@ -602,7 +972,17 @@ async def delete_page(
     Raises:
         ValueError: If Confluence client is not configured or available.
     """
-    confluence_fetcher = await get_confluence_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if confluence_url and auth_token and auth_type:
+        config = build_confluence_config_from_params(
+            confluence_url=confluence_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        confluence_fetcher = ConfluenceFetcher(config=config)
+    else:
+        confluence_fetcher = await get_confluence_fetcher(ctx)
     try:
         result = confluence_fetcher.delete_page(page_id=page_id)
         if result:
@@ -636,6 +1016,34 @@ async def add_comment(
     content: Annotated[
         str, Field(description="The comment content in Markdown format")
     ],
+    confluence_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Confluence instance URL (e.g., 'https://mycompany.atlassian.net/wiki'). If not provided, uses environment variable CONFLUENCE_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Add a comment to a Confluence page.
 
@@ -643,6 +1051,10 @@ async def add_comment(
         ctx: The FastMCP context.
         page_id: The ID of the page to add a comment to.
         content: The comment content in Markdown format.
+        confluence_url: Optional Confluence instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the created comment.
@@ -650,7 +1062,17 @@ async def add_comment(
     Raises:
         ValueError: If in read-only mode or Confluence client is unavailable.
     """
-    confluence_fetcher = await get_confluence_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if confluence_url and auth_token and auth_type:
+        config = build_confluence_config_from_params(
+            confluence_url=confluence_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        confluence_fetcher = ConfluenceFetcher(config=config)
+    else:
+        confluence_fetcher = await get_confluence_fetcher(ctx)
     try:
         comment = confluence_fetcher.add_comment(page_id=page_id, content=content)
         if comment:
@@ -700,6 +1122,34 @@ async def search_user(
             le=50,
         ),
     ] = 10,
+    confluence_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Confluence instance URL (e.g., 'https://mycompany.atlassian.net/wiki'). If not provided, uses environment variable CONFLUENCE_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Search Confluence users using CQL.
 
@@ -707,11 +1157,25 @@ async def search_user(
         ctx: The FastMCP context.
         query: Search query - a CQL query string for user search.
         limit: Maximum number of results (1-50).
+        confluence_url: Optional Confluence instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing a list of simplified Confluence user search result objects.
     """
-    confluence_fetcher = await get_confluence_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if confluence_url and auth_token and auth_type:
+        config = build_confluence_config_from_params(
+            confluence_url=confluence_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        confluence_fetcher = ConfluenceFetcher(config=config)
+    else:
+        confluence_fetcher = await get_confluence_fetcher(ctx)
 
     # If the query doesn't look like CQL, wrap it as a user fullname search
     if query and not any(

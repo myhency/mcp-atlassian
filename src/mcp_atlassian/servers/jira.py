@@ -2,16 +2,18 @@
 
 import json
 import logging
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastmcp import Context, FastMCP
 from pydantic import Field
 from requests.exceptions import HTTPError
 
 from mcp_atlassian.exceptions import MCPAtlassianAuthenticationError
+from mcp_atlassian.jira import JiraFetcher
 from mcp_atlassian.jira.constants import DEFAULT_READ_JIRA_FIELDS
 from mcp_atlassian.models.jira.common import JiraUser
 from mcp_atlassian.servers.dependencies import get_jira_fetcher
+from mcp_atlassian.utils.config_builder import build_jira_config_from_params
 from mcp_atlassian.utils.decorators import check_write_access
 
 logger = logging.getLogger(__name__)
@@ -31,6 +33,34 @@ async def get_user_profile(
             description="Identifier for the user (e.g., email address 'user@example.com', username 'johndoe', account ID 'accountid:...', or key for Server/DC)."
         ),
     ],
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """
     Retrieve profile information for a specific Jira user.
@@ -38,6 +68,10 @@ async def get_user_profile(
     Args:
         ctx: The FastMCP context.
         user_identifier: User identifier (email, username, key, or account ID).
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the Jira user profile object, or an error object if not found.
@@ -45,7 +79,17 @@ async def get_user_profile(
     Raises:
         ValueError: If the Jira client is not configured or available.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     try:
         user: JiraUser = jira.get_user_profile_by_identifier(user_identifier)
         result = user.to_simplified_dict()
@@ -128,6 +172,34 @@ async def get_issue(
             default=True,
         ),
     ] = True,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Get details of a specific Jira issue including its Epic links and relationship information.
 
@@ -139,6 +211,10 @@ async def get_issue(
         comment_limit: Maximum number of comments.
         properties: Issue properties to return.
         update_history: Whether to update issue view history.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the Jira issue object.
@@ -146,7 +222,17 @@ async def get_issue(
     Raises:
         ValueError: If the Jira client is not configured or available.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     fields_list: str | list[str] | None = fields
     if fields and fields != "*all":
         fields_list = [f.strip() for f in fields.split(",")]
@@ -218,6 +304,34 @@ async def search(
             default=None,
         ),
     ] = None,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Search Jira issues using JQL (Jira Query Language).
 
@@ -229,11 +343,25 @@ async def search(
         start_at: Starting index for pagination.
         projects_filter: Comma-separated list of project keys to filter by.
         expand: Optional fields to expand.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the search results including pagination info.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     fields_list: str | list[str] | None = fields
     if fields and fields != "*all":
         fields_list = [f.strip() for f in fields.split(",")]
@@ -267,6 +395,34 @@ async def search_fields(
         bool,
         Field(description="Whether to force refresh the field list", default=False),
     ] = False,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Search Jira fields by keyword with fuzzy match.
 
@@ -275,11 +431,25 @@ async def search_fields(
         keyword: Keyword for fuzzy search.
         limit: Maximum number of results.
         refresh: Whether to force refresh the field list.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing a list of matching field definitions.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     result = jira.search_fields(keyword, limit=limit, refresh=refresh)
     return json.dumps(result, indent=2, ensure_ascii=False)
 
@@ -296,6 +466,34 @@ async def get_project_issues(
         int,
         Field(description="Starting index for pagination (0-based)", default=0, ge=0),
     ] = 0,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Get all issues for a specific Jira project.
 
@@ -304,11 +502,25 @@ async def get_project_issues(
         project_key: The project key.
         limit: Maximum number of results.
         start_at: Starting index for pagination.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the search results including pagination info.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     search_result = jira.get_project_issues(
         project_key=project_key, start=start_at, limit=limit
     )
@@ -320,17 +532,59 @@ async def get_project_issues(
 async def get_transitions(
     ctx: Context,
     issue_key: Annotated[str, Field(description="Jira issue key (e.g., 'PROJ-123')")],
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Get available status transitions for a Jira issue.
 
     Args:
         ctx: The FastMCP context.
         issue_key: Jira issue key.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing a list of available transitions.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     # Underlying method returns list[dict] in the desired format
     transitions = jira.get_available_transitions(issue_key)
     return json.dumps(transitions, indent=2, ensure_ascii=False)
@@ -340,17 +594,59 @@ async def get_transitions(
 async def get_worklog(
     ctx: Context,
     issue_key: Annotated[str, Field(description="Jira issue key (e.g., 'PROJ-123')")],
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Get worklog entries for a Jira issue.
 
     Args:
         ctx: The FastMCP context.
         issue_key: Jira issue key.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the worklog entries.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     worklogs = jira.get_worklogs(issue_key)
     result = {"worklogs": worklogs}
     return json.dumps(result, indent=2, ensure_ascii=False)
@@ -363,6 +659,34 @@ async def download_attachments(
     target_dir: Annotated[
         str, Field(description="Directory where attachments should be saved")
     ],
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Download attachments from a Jira issue.
 
@@ -370,11 +694,25 @@ async def download_attachments(
         ctx: The FastMCP context.
         issue_key: Jira issue key.
         target_dir: Directory to save attachments.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string indicating the result of the download operation.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     result = jira.download_issue_attachments(issue_key=issue_key, target_dir=target_dir)
     return json.dumps(result, indent=2, ensure_ascii=False)
 
@@ -403,6 +741,34 @@ async def get_agile_boards(
         int,
         Field(description="Maximum number of results (1-50)", default=10, ge=1, le=50),
     ] = 10,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Get jira agile boards by name, project key, or type.
 
@@ -413,11 +779,25 @@ async def get_agile_boards(
         board_type: Board type ('scrum' or 'kanban').
         start_at: Starting index.
         limit: Maximum results.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing a list of board objects.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     boards = jira.get_all_agile_boards_model(
         board_name=board_name,
         project_key=project_key,
@@ -474,6 +854,34 @@ async def get_board_issues(
             default="version",
         ),
     ] = "version",
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Get all issues linked to a specific board filtered by JQL.
 
@@ -485,11 +893,25 @@ async def get_board_issues(
         start_at: Starting index for pagination.
         limit: Maximum number of results.
         expand: Optional fields to expand.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the search results including pagination info.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     fields_list: str | list[str] | None = fields
     if fields and fields != "*all":
         fields_list = [f.strip() for f in fields.split(",")]
@@ -522,6 +944,34 @@ async def get_sprints_from_board(
         int,
         Field(description="Maximum number of results (1-50)", default=10, ge=1, le=50),
     ] = 10,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Get jira sprints from board by state.
 
@@ -531,11 +981,25 @@ async def get_sprints_from_board(
         state: Sprint state ('active', 'future', 'closed'). If None, returns all sprints.
         start_at: Starting index.
         limit: Maximum results.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing a list of sprint objects.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     sprints = jira.get_all_sprints_from_board_model(
         board_id=board_id, state=state, start=start_at, limit=limit
     )
@@ -566,6 +1030,34 @@ async def get_sprint_issues(
         int,
         Field(description="Maximum number of results (1-50)", default=10, ge=1, le=50),
     ] = 10,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Get jira issues from sprint.
 
@@ -575,11 +1067,25 @@ async def get_sprint_issues(
         fields: Comma-separated fields to return.
         start_at: Starting index.
         limit: Maximum results.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the search results including pagination info.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     fields_list: str | list[str] | None = fields
     if fields and fields != "*all":
         fields_list = [f.strip() for f in fields.split(",")]
@@ -592,16 +1098,60 @@ async def get_sprint_issues(
 
 
 @jira_mcp.tool(tags={"jira", "read"})
-async def get_link_types(ctx: Context) -> str:
+async def get_link_types(
+    ctx: Context,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
+) -> str:
     """Get all available issue link types.
 
     Args:
         ctx: The FastMCP context.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing a list of issue link type objects.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     link_types = jira.get_issue_link_types()
     formatted_link_types = [link_type.to_simplified_dict() for link_type in link_types]
     return json.dumps(formatted_link_types, indent=2, ensure_ascii=False)
@@ -663,6 +1213,34 @@ async def create_issue(
             default=None,
         ),
     ] = None,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Create a new Jira issue with optional Epic link or parent for subtasks.
 
@@ -675,6 +1253,10 @@ async def create_issue(
         description: Issue description.
         components: Comma-separated list of component names.
         additional_fields: Dictionary of additional fields.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the created issue object.
@@ -682,7 +1264,17 @@ async def create_issue(
     Raises:
         ValueError: If in read-only mode or Jira client is unavailable.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     # Parse components from comma-separated string to list
     components_list = None
     if components and isinstance(components, str):
@@ -741,6 +1333,34 @@ async def batch_create_issues(
             default=False,
         ),
     ] = False,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Create multiple Jira issues in a batch.
 
@@ -748,6 +1368,10 @@ async def batch_create_issues(
         ctx: The FastMCP context.
         issues: JSON array string of issue objects.
         validate_only: If true, only validates without creating.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string indicating success and listing created issues (or validation result).
@@ -755,7 +1379,17 @@ async def batch_create_issues(
     Raises:
         ValueError: If in read-only mode, Jira client unavailable, or invalid JSON.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     # Parse issues from JSON string
     try:
         issues_list = json.loads(issues)
@@ -809,6 +1443,34 @@ async def batch_get_changelogs(
             default=-1,
         ),
     ] = -1,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Get changelogs for multiple Jira issues (Cloud only).
 
@@ -817,6 +1479,10 @@ async def batch_get_changelogs(
         issue_ids_or_keys: List of issue IDs or keys.
         fields: List of fields to filter changelogs by. None for all fields.
         limit: Maximum changelogs per issue (-1 for all).
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing a list of issues with their changelogs.
@@ -825,7 +1491,17 @@ async def batch_get_changelogs(
         NotImplementedError: If run on Jira Server/Data Center.
         ValueError: If Jira client is unavailable.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     # Ensure this runs only on Cloud, as per original function docstring
     if not jira.config.is_cloud:
         raise NotImplementedError(
@@ -884,6 +1560,34 @@ async def update_issue(
             default=None,
         ),
     ] = None,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Update an existing Jira issue including changing status, adding Epic links, updating fields, etc.
 
@@ -893,6 +1597,10 @@ async def update_issue(
         fields: Dictionary of fields to update.
         additional_fields: Optional dictionary of additional fields.
         attachments: Optional JSON array string or comma-separated list of file paths.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the updated issue object and attachment results.
@@ -900,7 +1608,17 @@ async def update_issue(
     Raises:
         ValueError: If in read-only mode or Jira client unavailable, or invalid input.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     # Use fields directly as dict
     if not isinstance(fields, dict):
         raise ValueError("fields must be a dictionary.")
@@ -959,12 +1677,44 @@ async def update_issue(
 async def delete_issue(
     ctx: Context,
     issue_key: Annotated[str, Field(description="Jira issue key (e.g. PROJ-123)")],
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Delete an existing Jira issue.
 
     Args:
         ctx: The FastMCP context.
         issue_key: Jira issue key.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string indicating success.
@@ -972,7 +1722,17 @@ async def delete_issue(
     Raises:
         ValueError: If in read-only mode or Jira client unavailable.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     deleted = jira.delete_issue(issue_key)
     result = {"message": f"Issue {issue_key} has been deleted successfully."}
     # The underlying method raises on failure, so if we reach here, it's success.
@@ -985,6 +1745,34 @@ async def add_comment(
     ctx: Context,
     issue_key: Annotated[str, Field(description="Jira issue key (e.g., 'PROJ-123')")],
     comment: Annotated[str, Field(description="Comment text in Markdown format")],
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Add a comment to a Jira issue.
 
@@ -992,6 +1780,10 @@ async def add_comment(
         ctx: The FastMCP context.
         issue_key: Jira issue key.
         comment: Comment text in Markdown.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the added comment object.
@@ -999,7 +1791,17 @@ async def add_comment(
     Raises:
         ValueError: If in read-only mode or Jira client unavailable.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     # add_comment returns dict
     result = jira.add_comment(issue_key, comment)
     return json.dumps(result, indent=2, ensure_ascii=False)
@@ -1039,6 +1841,34 @@ async def add_worklog(
     remaining_estimate: Annotated[
         str | None, Field(description="(Optional) New value for the remaining estimate")
     ] = None,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Add a worklog entry to a Jira issue.
 
@@ -1050,6 +1880,10 @@ async def add_worklog(
         started: Optional start time in ISO format.
         original_estimate: Optional new original estimate.
         remaining_estimate: Optional new remaining estimate.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
 
     Returns:
@@ -1058,7 +1892,17 @@ async def add_worklog(
     Raises:
         ValueError: If in read-only mode or Jira client unavailable.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     # add_worklog returns dict
     worklog_result = jira.add_worklog(
         issue_key=issue_key,
@@ -1082,6 +1926,34 @@ async def link_to_epic(
     epic_key: Annotated[
         str, Field(description="The key of the epic to link to (e.g., 'PROJ-456')")
     ],
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Link an existing issue to an epic.
 
@@ -1089,6 +1961,10 @@ async def link_to_epic(
         ctx: The FastMCP context.
         issue_key: The key of the issue to link.
         epic_key: The key of the epic to link to.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the updated issue object.
@@ -1096,7 +1972,17 @@ async def link_to_epic(
     Raises:
         ValueError: If in read-only mode or Jira client unavailable.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     issue = jira.link_issue_to_epic(issue_key, epic_key)
     result = {
         "message": f"Issue {issue_key} has been linked to epic {epic_key}.",
@@ -1131,6 +2017,34 @@ async def create_issue_link(
             default=None,
         ),
     ] = None,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Create a link between two Jira issues.
 
@@ -1141,6 +2055,10 @@ async def create_issue_link(
         outward_issue_key: The key of the target issue.
         comment: Optional comment text.
         comment_visibility: Optional dictionary for comment visibility.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string indicating success or failure.
@@ -1148,7 +2066,17 @@ async def create_issue_link(
     Raises:
         ValueError: If required fields are missing, invalid input, in read-only mode, or Jira client unavailable.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     if not all([link_type, inward_issue_key, outward_issue_key]):
         raise ValueError(
             "link_type, inward_issue_key, and outward_issue_key are required."
@@ -1205,6 +2133,34 @@ async def create_remote_issue_link(
     icon_url: Annotated[
         str | None, Field(description="(Optional) URL to a 16x16 icon for the link")
     ] = None,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Create a remote issue link (web link or Confluence link) for a Jira issue.
 
@@ -1219,6 +2175,10 @@ async def create_remote_issue_link(
         summary: Optional description of what the link is for.
         relationship: Optional relationship description.
         icon_url: Optional URL to a 16x16 icon for the link.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string indicating success or failure.
@@ -1226,7 +2186,17 @@ async def create_remote_issue_link(
     Raises:
         ValueError: If required fields are missing, invalid input, in read-only mode, or Jira client unavailable.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     if not issue_key:
         raise ValueError("issue_key is required.")
     if not url:
@@ -1260,12 +2230,44 @@ async def create_remote_issue_link(
 async def remove_issue_link(
     ctx: Context,
     link_id: Annotated[str, Field(description="The ID of the link to remove")],
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Remove a link between two Jira issues.
 
     Args:
         ctx: The FastMCP context.
         link_id: The ID of the link to remove.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string indicating success.
@@ -1273,7 +2275,17 @@ async def remove_issue_link(
     Raises:
         ValueError: If link_id is missing, in read-only mode, or Jira client unavailable.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     if not link_id:
         raise ValueError("link_id is required")
 
@@ -1315,6 +2327,34 @@ async def transition_issue(
             ),
         ),
     ] = None,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Transition a Jira issue to a new status.
 
@@ -1324,6 +2364,10 @@ async def transition_issue(
         transition_id: ID of the transition.
         fields: Optional dictionary of fields to update during transition.
         comment: Optional comment for the transition.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the updated issue object.
@@ -1331,7 +2375,17 @@ async def transition_issue(
     Raises:
         ValueError: If required fields missing, invalid input, in read-only mode, or Jira client unavailable.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     if not issue_key or not transition_id:
         raise ValueError("issue_key and transition_id are required.")
 
@@ -1371,6 +2425,34 @@ async def create_sprint(
     goal: Annotated[
         str | None, Field(description="(Optional) Goal of the sprint")
     ] = None,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Create Jira sprint for a board.
 
@@ -1381,6 +2463,10 @@ async def create_sprint(
         start_date: Start date (ISO format).
         end_date: End date (ISO format).
         goal: Optional sprint goal.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the created sprint object.
@@ -1388,7 +2474,17 @@ async def create_sprint(
     Raises:
         ValueError: If in read-only mode or Jira client unavailable.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     sprint = jira.create_sprint(
         board_id=board_id,
         sprint_name=sprint_name,
@@ -1420,6 +2516,34 @@ async def update_sprint(
     goal: Annotated[
         str | None, Field(description="(Optional) New goal for the sprint")
     ] = None,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Update jira sprint.
 
@@ -1431,6 +2555,10 @@ async def update_sprint(
         start_date: Optional new start date.
         end_date: Optional new end date.
         goal: Optional new goal.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing the updated sprint object or an error message.
@@ -1438,7 +2566,17 @@ async def update_sprint(
     Raises:
         ValueError: If in read-only mode or Jira client unavailable.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     sprint = jira.update_sprint(
         sprint_id=sprint_id,
         sprint_name=sprint_name,
@@ -1461,9 +2599,59 @@ async def update_sprint(
 async def get_project_versions(
     ctx: Context,
     project_key: Annotated[str, Field(description="Jira project key (e.g., 'PROJ')")],
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
-    """Get all fix versions for a specific Jira project."""
-    jira = await get_jira_fetcher(ctx)
+    """Get all fix versions for a specific Jira project.
+
+    Args:
+        ctx: The FastMCP context.
+        project_key: Jira project key.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
+
+    Returns:
+        JSON string representing a list of versions.
+    """
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     versions = jira.get_project_versions(project_key)
     return json.dumps(versions, indent=2, ensure_ascii=False)
 
@@ -1478,12 +2666,44 @@ async def get_all_projects(
             default=False,
         ),
     ] = False,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Get all Jira projects accessible to the current user.
 
     Args:
         ctx: The FastMCP context.
         include_archived: Whether to include archived projects.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string representing a list of project objects accessible to the user.
@@ -1494,7 +2714,17 @@ async def get_all_projects(
         ValueError: If the Jira client is not configured or available.
     """
     try:
-        jira = await get_jira_fetcher(ctx)
+        # Use provided credentials if all required parameters are present
+        if jira_url and auth_token and auth_type:
+            config = build_jira_config_from_params(
+                jira_url=jira_url,
+                auth_token=auth_token,
+                auth_type=auth_type,
+                username=username,
+            )
+            jira = JiraFetcher(config=config)
+        else:
+            jira = await get_jira_fetcher(ctx)
         projects = jira.get_all_projects(include_archived=include_archived)
     except (MCPAtlassianAuthenticationError, HTTPError, OSError, ValueError) as e:
         error_message = ""
@@ -1548,6 +2778,34 @@ async def create_version(
     description: Annotated[
         str | None, Field(description="Description of the version", default=None)
     ] = None,
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Create a new fix version in a Jira project.
 
@@ -1558,11 +2816,25 @@ async def create_version(
         start_date: Start date (optional).
         release_date: Release date (optional).
         description: Description (optional).
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON string of the created version object.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     try:
         version = jira.create_project_version(
             project_key=project_key,
@@ -1602,6 +2874,34 @@ async def batch_create_versions(
             )
         ),
     ],
+    jira_url: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Jira instance URL (e.g., 'https://mycompany.atlassian.net'). If not provided, uses environment variable JIRA_URL.",
+            default=None,
+        ),
+    ] = None,
+    auth_token: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Authentication token (OAuth token, PAT, or API token). If not provided, uses environment variable credentials.",
+            default=None,
+        ),
+    ] = None,
+    auth_type: Annotated[
+        Literal["oauth", "pat", "basic"] | None,
+        Field(
+            description="(Optional) Authentication type. Required if auth_token is provided. Choices: 'oauth', 'pat', 'basic'.",
+            default=None,
+        ),
+    ] = None,
+    username: Annotated[
+        str | None,
+        Field(
+            description="(Optional) Username/email (required only for 'basic' auth type)",
+            default=None,
+        ),
+    ] = None,
 ) -> str:
     """Batch create multiple versions in a Jira project.
 
@@ -1609,11 +2909,25 @@ async def batch_create_versions(
         ctx: The FastMCP context.
         project_key: The project key.
         versions: JSON array string of version objects.
+        jira_url: Optional Jira instance URL.
+        auth_token: Optional authentication token.
+        auth_type: Optional authentication type ('oauth', 'pat', or 'basic').
+        username: Optional username (required for 'basic' auth).
 
     Returns:
         JSON array of results, each with success flag, version or error.
     """
-    jira = await get_jira_fetcher(ctx)
+    # Use provided credentials if all required parameters are present
+    if jira_url and auth_token and auth_type:
+        config = build_jira_config_from_params(
+            jira_url=jira_url,
+            auth_token=auth_token,
+            auth_type=auth_type,
+            username=username,
+        )
+        jira = JiraFetcher(config=config)
+    else:
+        jira = await get_jira_fetcher(ctx)
     try:
         version_list = json.loads(versions)
         if not isinstance(version_list, list):
